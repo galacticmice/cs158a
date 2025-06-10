@@ -15,7 +15,7 @@ while True:
     if match:
         break
     else:
-        print("Invalid input. Please try again.")
+        print("Invalid input. Please try again.\n")
         continue
 
 clientSocket.send(sentence.encode())
