@@ -7,10 +7,10 @@ serverPort = 12000
 
 def parse_message(message, addr):
     msg_len = int(message[:N])
-    processed_string = message[N:].upper()
+    processed_string = message[N:]
     print(f"{addr} Message Length: {msg_len}")
     print(f"{addr} Processed String: {processed_string}")
-    return processed_string
+    return processed_string.upper()
 
 
 if __name__ == "__main__":
