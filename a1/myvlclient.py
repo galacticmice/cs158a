@@ -11,6 +11,7 @@ sentence = None
 
 while True:
     sentence = input("Input [00-99] followed by message(no spaces): ")
+    # validate input with regex
     match = re.search(r"^[0-9]{2}", sentence)
     if match:
         break
