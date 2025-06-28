@@ -11,22 +11,22 @@ stop_event = threading.Event()
 
 
 def connected(stop_event, connectionSocket, my_addr):
-    connectionSocket.settimeout(1.0)
+    connectionSocket.settimeout(1.0)  # timer to periodically check for halt event
     try:
-        while not stop_event.is_set():
+        while not stop_event.is_set():  # if halted, stop loop
             try:
                 message = connectionSocket.recv(1024).decode()
             except timeout:
                 continue
 
-            # if exit -> close socket, remove from dict, end thread
+            # if exit received -> remove from dict, end thread
             if message == "exit":
                 with lock:
                     del sockets[my_addr]
                 break
 
+            # setup chat structure, iterate through dict and propagate message to other clients
             modified = f"{my_addr}: {message}"
-            # iterate through dict and propagate message to other clients
             with lock:
                 for addr, sock in sockets.items():
                     if addr != my_addr:
@@ -40,12 +40,12 @@ def connected(stop_event, connectionSocket, my_addr):
         connectionSocket.close()
 
 
-# override signals to join threads while in use
-def handle_signals(signum, frame):
+def handle_signals(signum, frame):  # override signals to join threads while in use
     stop_event.set()
 
 
 if __name__ == "__main__":
+    # override ctrl-z/c signals
     signal.signal(signal.SIGINT, handle_signals)
     signal.signal(signal.SIGTSTP, handle_signals)
 
@@ -55,10 +55,11 @@ if __name__ == "__main__":
     serverSocket.settimeout(1.0)
     print("Server is ready to connect.\n")
 
+    # timer to periodically check for server close command
     while not stop_event.is_set():
         try:
             connectionSocket, addr = serverSocket.accept()
-        except timeout:  # break listening loop when signal received
+        except timeout:
             continue
         print(f"{addr} Accepted connection. \n")
         t = threading.Thread(

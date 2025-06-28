@@ -8,6 +8,7 @@ STOP_COMMAND = "exit"
 
 
 def receive(stop_event, clientSocket):
+    # periodically set timer to check if client was force closed
     clientSocket.settimeout(1.0)
     while not stop_event.is_set():
         try:
@@ -15,22 +16,27 @@ def receive(stop_event, clientSocket):
         except timeout:
             continue
 
+        # if client was closed by server, start shutdown process
         if received == "":
             print("Disconnected from server")
             stop_event.set()
             continue
 
+        # otherwise, print message received
         print(received)
 
 
 def send(stop_event, clientSocket):
+    # periodically check if client was force closed by user (bypass input block)
+    clientSocket.settimeout(1.0)
     while not stop_event.is_set():
-        sentence = input()
-
+        try:
+            sentence = input()
+        except timeout:
+            continue
         clientSocket.send(sentence.encode())
-        if sentence == STOP_COMMAND:
+        if sentence == STOP_COMMAND:  # if user sends "exit", start pre-cleanup
             break
-    return
 
 
 def handle_signals(signum, frame):
@@ -38,6 +44,7 @@ def handle_signals(signum, frame):
 
 
 if __name__ == "__main__":
+    # handle ctrl-z/c signals
     signal.signal(signal.SIGINT, handle_signals)
     signal.signal(signal.SIGTSTP, handle_signals)
     stop_event = threading.Event()
