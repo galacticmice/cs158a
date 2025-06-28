@@ -75,4 +75,4 @@ if __name__ == "__main__":
         for t in threads:
             t.join()
     serverSocket.close()
-    print("Program exited gracefully.\n")
+    print("\nProgram exited gracefully.\n")
