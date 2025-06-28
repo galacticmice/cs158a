@@ -76,17 +76,3 @@ if __name__ == "__main__":
             t.join()
     serverSocket.close()
     print("Program exited gracefully.\n")
-
-
-# server listens for connections
-# opens port for new connection
-# prints "New connection from (ip, port)"
-# waits for buffer from opened connections
-# process message
-# if 'exit' --> close connection
-# else --> prints message to all other connected clients
-# printing
-# - iterate list?
-# - hashset?
-# do i need locks?
-# edge case: only 1 connected client --> if clientCount == 1
