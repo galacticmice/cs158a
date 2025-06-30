@@ -3,14 +3,11 @@ from socket import AF_INET, SOCK_STREAM, socket
 
 N = 2
 serverPort = 12000
+BUFSIZE = 64
 
 
 def parse_message(message, addr):
-    msg_len = int(message[:N])
-    processed_string = message[N:]
-    print(f"{addr} Message Length: {msg_len}")
-    print(f"{addr} Processed String: {processed_string}")
-    return processed_string.upper()
+    return message.upper()
 
 
 if __name__ == "__main__":
@@ -35,12 +32,29 @@ if __name__ == "__main__":
         # if child, close listen socket, only use accept socket, remember to exit
         if os.fork() == 0:
             serverSocket.close()
+            first_buf = connectionSocket.recv(BUFSIZE).decode()
+            char_length = int(first_buf[:N])
+            input_length = char_length + 2
 
-            message = connectionSocket.recv(64).decode()
+            message = first_buf[N:]
+            input_length -= BUFSIZE
+            while input_length > 0:
+                message += connectionSocket.recv(BUFSIZE).decode()
+                input_length -= BUFSIZE
+
+            print(f"{addr} Message Length: {char_length}")
+            print(f"{addr} Processed String: {message}")
+
             capSentence = parse_message(message, addr)
 
-            connectionSocket.send(capSentence.encode())
-            print(f"{addr} Message Length Sent: {len(capSentence)}")
+            while char_length > 0:
+                send_buffer = capSentence[:64]
+                capSentence = capSentence[64:]
+                connectionSocket.send(send_buffer.encode())
+                char_length -= BUFSIZE
+
+            print(f"{addr} Message Length Sent: {len(message)}")
+
             connectionSocket.close()
             print(f"{addr} Connection closed")
             os._exit(0)
