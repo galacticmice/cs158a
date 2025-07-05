@@ -28,17 +28,17 @@ class Message:
         return cls(uuid=UUID(data["uuid"]), flag=data["flag"])
 
 
-# do I store UUID or message class?
-SERVERNAME = "localhost"
-SERVERPORT = 12000
+FW_SERVER_IP = None
+FW_SERVER_PORT = None
+MY_SERVER_IP = None
+MY_SERVER_PORT = None
 candidate: Message = Message()
-t: Thread
 
 
-def accept(callback, cSock, shutdown_event):
+def accept(callback, cSock, shutdown_event, log):
     global candidate
     serverSocket = socket(AF_INET, SOCK_STREAM)
-    serverSocket.bind(("", SERVERPORT))
+    serverSocket.bind((MY_SERVER_IP, MY_SERVER_PORT))
     serverSocket.listen(1)
     print("Server is ready to connect.\n")
     try:
@@ -56,15 +56,24 @@ def accept(callback, cSock, shutdown_event):
                 receivedCandidate = Message.importDict(
                     json.loads(receivedBuffer.decode())
                 )
-                # if received id is the same as my holding candidate, leader is found
+
+                # if received id is the same as my holding candidate, leader is found and send
                 if receivedCandidate.getUUID() == candidate.getUUID():
-                    candidate.setFlag()
-                # if received id is larger than my candidate, replace mine
+                    candidate.setFlag()  # leader found, set flag = 1
+                    log_received(log, receivedCandidate)
+                    log.write(f"Leader is decided to {candidate.getUUID()}.\n")
+                    callback(json.dumps(candidate.exportDict()))  # announce
+                    log_sent(log)
+                # if received id is larger than my candidate, replace mine and send
                 elif receivedCandidate.getUUID() > candidate.getUUID():
-                    candidate = receivedCandidate
-                # else+finally, send my results to next node
-                callback(json.dumps(candidate.exportDict()))
-            except socket.timeout:
+                    candidate = receivedCandidate  # replace my candidate
+                    callback(json.dumps(candidate.exportDict()))  # announce
+                    log_sent(log)
+                # else if received is smaller, drop
+                else:
+                    log_received(log, receivedCandidate, "greater")
+                    log.write("Received message is smaller: dropped...\n")
+            except socket.timeout:  # periodically check for shutdowns
                 continue
     except Exception as e:
         print(f"Error: {e}")
@@ -73,14 +82,36 @@ def accept(callback, cSock, shutdown_event):
         conn.close()
 
 
+def log_sent(log):
+    log.write(f"Sent: uuid={candidate.getUUID()}, flag={candidate.getFlag()}\n")
+
+
+def log_received(log, o, eval="equal"):
+    log.write(
+        f"Received: uuid={o.getUUID()}, flag={o.getFlag()}, {eval}, {candidate.getFlag()}\n"
+    )
+
+
+def read_config(config):
+    lines = config.readlines()
+    MY_SERVER_IP, MY_SERVER_PORT = lines[0].strip().split(",")
+    FW_SERVER_IP, FW_SERVER_PORT = lines[1].strip().split(",")
+
+
 if __name__ == "__main__":
+    config = open("config.txt", "r")
+    read_config(config)
+    log = open("log.txt", "w")
     shutdown_event = Event()
     clientSocket = socket(AF_INET, SOCK_STREAM)
     try:
-        clientSocket.connect((SERVERNAME, SERVERPORT))
+        clientSocket.connect((FW_SERVER_IP, FW_SERVER_PORT))
         print("Connection established with forward neighbor.\n")
         forward = lambda message: clientSocket.send(message.encode())
-        t = Thread(target=accept, args=(forward, clientSocket, shutdown_event))
+        forward(candidate.exportDict())  # send my first candidate
+        print("Sent first candidate.\n")
+        log_sent(log)
+        t = Thread(target=accept, args=(forward, clientSocket, shutdown_event, log))
         t.start()
         while t.is_alive():
             t.join(timeout=1)
@@ -92,12 +123,15 @@ if __name__ == "__main__":
         shutdown_event.set()
         clientSocket.close()
         t.join()
+        config.close()
+        log.close()
 
-# open client socket -
-# create lambda function to send uuid to server -
-# create server thread, passing lambda function as argument -
-# in server, use while loop to wait for data
-# if data received, compare with candidate
-# how to know the end?? --> when to flip flag?
-# call lambda function, sending candidate uuid
-# when to end?
+# TODO
+# print results to log.txt
+# - when received message
+#     - Received: uuid={receivedUuid}, flag={receivedFlag}, less/more, {myFlag}
+#     - Ignored
+#     - Leader is decided to {myUUID}
+# - when sending message
+#     - Sent: uuid={myUUID}, flag={myFlag}
+# get IP/port details from config.txt
