@@ -125,13 +125,3 @@ if __name__ == "__main__":
         t.join()
         config.close()
         log.close()
-
-# TODO
-# print results to log.txt
-# - when received message
-#     - Received: uuid={receivedUuid}, flag={receivedFlag}, less/more, {myFlag}
-#     - Ignored
-#     - Leader is decided to {myUUID}
-# - when sending message
-#     - Sent: uuid={myUUID}, flag={myFlag}
-# get IP/port details from config.txt
