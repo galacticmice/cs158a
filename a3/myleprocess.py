@@ -1,6 +1,7 @@
 import json
-from socket import AF_INET, SOCK_STREAM, socket
+from socket import AF_INET, SOCK_STREAM, socket, timeout
 from threading import Event, Thread
+from time import sleep
 from typing import Any, Dict, Literal
 from uuid import UUID, uuid4
 
@@ -35,27 +36,27 @@ MY_SERVER_PORT = None
 candidate: Message = Message()
 
 
-def accept(callback, cSock, shutdown_event, log):
+def accept(serverSocket, callback, cSock, shutdown_event, log):
     global candidate
-    serverSocket = socket(AF_INET, SOCK_STREAM)
-    serverSocket.bind((MY_SERVER_IP, MY_SERVER_PORT))
-    serverSocket.listen(1)
-    print("Server is ready to connect.\n")
+    conn = None
     try:
         conn, addr = serverSocket.accept()
         serverSocket.close()  # close listening socket
         conn.settimeout(1)
+        buffer = ""
         while candidate.getFlag() == 0 and not shutdown_event.is_set():
             try:
                 receivedBuffer = conn.recv(256)
                 # if connection closed by previous neighbor
                 if not receivedBuffer:
                     break
-
+                buffer += receivedBuffer.decode()
+                while "\n" in buffer:
+                    line, buffer = buffer.split("\n", 1)
+                    if not line.strip():
+                        continue
                 # deserialize message
-                receivedCandidate = Message.importDict(
-                    json.loads(receivedBuffer.decode())
-                )
+                receivedCandidate = Message.importDict(json.loads(line))
 
                 # if received id is the same as my holding candidate, leader is found and send
                 if receivedCandidate.getUUID() == candidate.getUUID():
@@ -73,13 +74,13 @@ def accept(callback, cSock, shutdown_event, log):
                 else:
                     log_received(log, receivedCandidate, "greater")
                     log.write("Received message is smaller: dropped...\n")
-            except socket.timeout:  # periodically check for shutdowns
+            except timeout:  # periodically check for shutdowns
                 continue
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        serverSocket.close()
-        conn.close()
+        if conn is not None:
+            conn.close()
 
 
 def log_sent(log):
@@ -93,9 +94,12 @@ def log_received(log, o, eval="equal"):
 
 
 def read_config(config):
+    global MY_SERVER_IP, MY_SERVER_PORT, FW_SERVER_IP, FW_SERVER_PORT
     lines = config.readlines()
-    MY_SERVER_IP, MY_SERVER_PORT = lines[0].strip().split(",")
-    FW_SERVER_IP, FW_SERVER_PORT = lines[1].strip().split(",")
+    MY_SERVER_IP, my_port = lines[0].strip().split(",")
+    FW_SERVER_IP, fw_port = lines[1].strip().split(",")
+    MY_SERVER_PORT = int(my_port)
+    FW_SERVER_PORT = int(fw_port)
 
 
 if __name__ == "__main__":
@@ -103,25 +107,53 @@ if __name__ == "__main__":
     read_config(config)
     log = open("log.txt", "w")
     shutdown_event = Event()
-    clientSocket = socket(AF_INET, SOCK_STREAM)
+    serverSocket = socket(AF_INET, SOCK_STREAM)
+    serverSocket.bind((MY_SERVER_IP, MY_SERVER_PORT))
+    serverSocket.listen(1)
+    print("Server is ready to connect.\n")
+
+    while True:
+        clientSocket = socket(AF_INET, SOCK_STREAM)
+        try:
+            clientSocket.connect((FW_SERVER_IP, FW_SERVER_PORT))
+            print("Connection established with forward neighbor.\n")
+            break
+        except Exception:
+            clientSocket.close()
+            sleep(2)
+    forward = lambda message: clientSocket.send((message + "\n").encode())
+    forward(json.dumps(candidate.exportDict()))  # send my first candidate
+    print("Sent first candidate.\n")
+    log_sent(log)
+    t = Thread(
+        target=accept,
+        args=(serverSocket, forward, clientSocket, shutdown_event, log),
+    )
     try:
-        clientSocket.connect((FW_SERVER_IP, FW_SERVER_PORT))
-        print("Connection established with forward neighbor.\n")
-        forward = lambda message: clientSocket.send(message.encode())
-        forward(candidate.exportDict())  # send my first candidate
-        print("Sent first candidate.\n")
-        log_sent(log)
-        t = Thread(target=accept, args=(forward, clientSocket, shutdown_event, log))
         t.start()
         while t.is_alive():
             t.join(timeout=1)
+        print("Leader election complete, printing results...\n")
+        print(f"Leader is {candidate.getUUID()}\n")
+        log.close()
+        print(
+            "----------------------------------------------BEGIN LOG-------------------------------------------------"
+        )
+        with open("log.txt", "r") as results:
+            for line in results:
+                print(line, end="")
+        print(
+            "-----------------------------------------------END LOG-------------------------------------------------"
+        )
     except KeyboardInterrupt:
-        print("Program Interrupted, shutting down...")
+        print("Program Interrupted, shutting down...\n")
     except Exception as e:
         print(f"Error: {e}")
     finally:
         shutdown_event.set()
         clientSocket.close()
-        t.join()
+        serverSocket.close()
+        if t is not None:
+            t.join()
         config.close()
         log.close()
