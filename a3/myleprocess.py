@@ -68,11 +68,12 @@ def accept(serverSocket, callback, cSock, shutdown_event, log):
                 # if received id is larger than my candidate, replace mine and send
                 elif receivedCandidate.getUUID() > candidate.getUUID():
                     candidate = receivedCandidate  # replace my candidate
+                    log_received(log, candidate, "greater")
                     callback(json.dumps(candidate.exportDict()))  # announce
                     log_sent(log)
                 # else if received is smaller, drop
                 else:
-                    log_received(log, receivedCandidate, "greater")
+                    log_received(log, receivedCandidate, "smaller")
                     log.write("Received message is smaller: dropped...\n")
             except timeout:  # periodically check for shutdowns
                 continue
