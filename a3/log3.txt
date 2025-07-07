@@ -1,0 +1,6 @@
+Sent: uuid=5a5caba8-d252-4562-969b-1b59f090fb8c, flag=0
+Received: uuid=eb859346-3a98-4e29-8f53-cc4d620d5d22, flag=0, greater, 0
+Sent: uuid=eb859346-3a98-4e29-8f53-cc4d620d5d22, flag=0
+Received: uuid=eb859346-3a98-4e29-8f53-cc4d620d5d22, flag=1, equal, 1
+Leader is decided to eb859346-3a98-4e29-8f53-cc4d620d5d22.
+Sent: uuid=eb859346-3a98-4e29-8f53-cc4d620d5d22, flag=1

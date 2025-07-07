@@ -1,0 +1,6 @@
+Sent: uuid=eb859346-3a98-4e29-8f53-cc4d620d5d22, flag=0
+Received: uuid=b5883d57-fe03-4ffe-9c58-d15af69abdd6, flag=0, smaller, 0
+Received message is smaller: dropped...
+Received: uuid=eb859346-3a98-4e29-8f53-cc4d620d5d22, flag=0, equal, 1
+Leader is decided to eb859346-3a98-4e29-8f53-cc4d620d5d22.
+Sent: uuid=eb859346-3a98-4e29-8f53-cc4d620d5d22, flag=1
